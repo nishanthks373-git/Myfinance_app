@@ -7,11 +7,21 @@ android {
     namespace = "com.spendtracker"
     compileSdk = 34
 
+    signingConfigs {
+        // Fixed key so every build is signed the same way and updates install over older versions.
+        getByName("debug") {
+            storeFile = file("spend.keystore")
+            storePassword = "spendtracker"
+            keyAlias = "spend"
+            keyPassword = "spendtracker"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.spendtracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0"
     }
 
