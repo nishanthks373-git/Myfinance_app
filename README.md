@@ -32,20 +32,31 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
 
 ## Screens
 
-- **Home**: month's spend, total returns, return %, and a per-method breakdown. Applies the
-  ₹2,000/month cap on HDFC Rewards Debit / Debit2 card-bill cashback, as your Monthly Returns tab does.
-- **Expenses**: the month's items. Tap one to mark it paid (paid by, date, amount, method) with a live
-  reward preview. The + button adds an ad-hoc item.
-- **Card bills**: each card's bill for the month; mark it paid with an amount and the method you used.
-- **Cards**: payment-method rates and your card list (rates per category, fees, bill and due dates).
+- **Home**: month's returns, spend and return %, per-method breakdown (tap a row to expand), and a
+  return-% bar chart by month. Applies the ₹2,000/month cap on HDFC Rewards Debit / Debit2 card-bill
+  cashback, as your Monthly Returns tab does.
+- **Expenses**: the month's items with All / Paid / Pending filters. Tap any item to mark it paid or edit
+  it (item name, paid by, date, amount, method, extra reward); Clear undoes a payment. + adds an ad-hoc item.
+- **Card bills**: each card's bill for the month. Tap to mark, edit or clear.
+- **Cards**: three tabs. Rates (tap to edit a method's return %, or add a method), Cards (tap a card, then
+  any field to edit it), Due dates (bill date, due date, limit).
 - **Settings**: connection details.
 
 ## What gets written to the sheet
 
-| Action | Tab | Columns written |
+| Action | Tab | Cells written |
 |---|---|---|
-| Mark expense | Monthly Expenses | C Paid By, D Paid On, E Amount, F Payment mode |
-| Mark card bill | CC bill | C Bill Amount, D Payment method |
+| Mark / edit expense | Monthly Expenses | B item, C Paid By, D Paid On, E Amount, F Payment mode, H extra reward |
+| Clear expense | Monthly Expenses | D, E, F emptied (row and formulas stay) |
+| Mark / edit card bill | CC bill | C Bill Amount, D Payment method |
+| Clear card bill | CC bill | C, D emptied |
+| Edit / add method rate | Rewards | B rate of that method, or a new row |
+| Edit card field | Card list | that one cell |
+| Edit due dates | Card list (bottom table) | bill date, due date, limit |
+
+**Important:** editing a method's rate on the Rewards tab changes every row that uses it, including past
+months, because your sheet looks the rate up live. To change a rate going forward only, add a new method
+(for example "HSBC Live+ 5%") and use that one from now on.
 
 Starting a new month: the first payment you mark copies the previous month's block of rows
 (with formulas) into the sheet, then fills in that payment.

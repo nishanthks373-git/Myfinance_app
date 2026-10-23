@@ -41,27 +41,60 @@ object Api {
         }
     }
 
-    suspend fun fetchState(url: String, token: String, month: String): SheetState {
-        val body = JSONObject().put("token", token).put("action", "state").put("month", month)
-        return parseState(call(url, body))
-    }
+    private fun req(token: String, action: String) = JSONObject().put("token", token).put("action", action)
 
+    suspend fun fetchState(url: String, token: String, month: String): SheetState =
+        parseState(call(url, req(token, "state").put("month", month)))
+
+    /** Mark a payment or edit an existing row (row > 0 edits exactly that row). */
     suspend fun markExpense(
-        url: String, token: String, month: String, utility: String, paidBy: String,
-        paidOn: String, amount: Double, mode: String, createIfMissing: Boolean,
+        url: String, token: String, month: String, row: Int, origUtility: String, utility: String,
+        paidBy: String, paidOn: String, amount: Double, mode: String, adhoc: Double, createIfMissing: Boolean,
     ) {
-        val body = JSONObject()
-            .put("token", token).put("action", "markExpense").put("month", month)
-            .put("utility", utility).put("paidBy", paidBy).put("paidOn", paidOn)
-            .put("amount", amount).put("mode", mode).put("createIfMissing", createIfMissing)
-        call(url, body)
+        call(
+            url,
+            req(token, "markExpense").put("month", month).put("row", row).put("origUtility", origUtility)
+                .put("utility", utility).put("paidBy", paidBy).put("paidOn", paidOn)
+                .put("amount", amount).put("mode", mode).put("adhoc", adhoc)
+                .put("createIfMissing", createIfMissing),
+        )
     }
 
-    suspend fun markBill(url: String, token: String, month: String, card: String, amount: Double, method: String) {
-        val body = JSONObject()
-            .put("token", token).put("action", "markCCBill").put("month", month)
-            .put("card", card).put("amount", amount).put("method", method)
-        call(url, body)
+    suspend fun clearExpense(url: String, token: String, month: String, row: Int, utility: String) {
+        call(url, req(token, "clearExpense").put("month", month).put("row", row).put("utility", utility))
+    }
+
+    suspend fun markBill(
+        url: String, token: String, month: String, row: Int, card: String, amount: Double, method: String,
+    ) {
+        call(
+            url,
+            req(token, "markCCBill").put("month", month).put("row", row).put("card", card)
+                .put("amount", amount).put("method", method),
+        )
+    }
+
+    suspend fun clearBill(url: String, token: String, month: String, row: Int, card: String) {
+        call(url, req(token, "clearBill").put("month", month).put("row", row).put("card", card))
+    }
+
+    /** rate is a fraction (0.05 = 5%). create = true adds a new payment method. */
+    suspend fun setRate(url: String, token: String, name: String, rate: Double, create: Boolean) {
+        call(url, req(token, "setRate").put("name", name).put("rate", rate).put("create", create))
+    }
+
+    suspend fun updateCardField(url: String, token: String, card: String, field: String, value: String) {
+        call(url, req(token, "updateCardField").put("card", card).put("field", field).put("value", value))
+    }
+
+    suspend fun updateDue(
+        url: String, token: String, card: String, billDate: String, dueDate: String, limit: Double?,
+    ) {
+        call(
+            url,
+            req(token, "updateDue").put("card", card).put("billDate", billDate).put("dueDate", dueDate)
+                .put("limit", limit ?: JSONObject.NULL),
+        )
     }
 
     /* ---------- parsing ---------- */

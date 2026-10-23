@@ -4,11 +4,13 @@
  * Setup: Extensions > Apps Script > paste this file > set SECRET below >
  * Deploy > New deployment > Web app > Execute as: Me, Who has access: Anyone.
  * Copy the /exec URL into the Android app's Settings screen.
+ * After any later edit: Deploy > Manage deployments > Edit (pencil) > Version: New version > Deploy.
  *
- * This script ONLY writes the input columns:
- *   Monthly Expenses : C (Paid By), D (Paid On), E (Amount), F (Payment mode), H (Adhoc return %)
- *   CC bill          : C (Bill Amount), D (Payment method)
- * Return % and Actual Return columns are your existing sheet formulas and are never overwritten.
+ * Writes only INPUT cells; your formula columns are never overwritten:
+ *   Monthly Expenses : B Utility, C Paid By, D Paid On, E Amount, F Payment mode, H Adhoc return
+ *   CC bill          : C Bill Amount, D Payment method
+ *   Rewards          : B (rate per payment method), plus new rows for new methods
+ *   Card list        : card fields (text cells), bill date / due date / limit table
  */
 
 const SECRET = 'CHANGE-ME-TO-A-LONG-RANDOM-STRING';
@@ -31,10 +33,15 @@ function doPost(e) {
     lock.waitLock(20000);
     try {
       switch (req.action) {
-        case 'state':       return json_(getState_(req.month));
-        case 'markExpense': return json_(markExpense_(req));
-        case 'markCCBill':  return json_(markCCBill_(req));
-        default:            return json_({ ok: false, error: 'Unknown action: ' + req.action });
+        case 'state':           return json_(getState_(req.month));
+        case 'markExpense':     return json_(markExpense_(req));
+        case 'clearExpense':    return json_(clearExpense_(req));
+        case 'markCCBill':      return json_(markCCBill_(req));
+        case 'clearBill':       return json_(clearBill_(req));
+        case 'setRate':         return json_(setRate_(req));
+        case 'updateCardField': return json_(updateCardField_(req));
+        case 'updateDue':       return json_(updateDue_(req));
+        default:                return json_({ ok: false, error: 'Unknown action: ' + req.action });
       }
     } finally {
       lock.releaseLock();
@@ -79,6 +86,16 @@ function lastDataRow_(sh, col) {      // last non-empty row in column `col`
   const vals = sh.getRange(1, col, sh.getMaxRows(), 1).getValues();
   for (let i = vals.length - 1; i >= 0; i--) if (vals[i][0] !== '') return i + 1;
   return 1;
+}
+
+/** Throws unless `row` of sheet `sh` still holds (month, name) in columns A and B. */
+function validateRow_(sh, row, month, name) {
+  const last = lastDataRow_(sh, 1);
+  if (!(row > 0) || row > last) throw new Error('That row no longer exists. Refresh and try again.');
+  const r = sh.getRange(row, 1, 1, 2).getValues()[0];
+  if (!(r[0] instanceof Date) || monthKey_(r[0]) !== month || String(r[1]).trim() !== String(name).trim()) {
+    throw new Error('The sheet changed since the app last loaded. Refresh and try again.');
+  }
 }
 
 /* ---------- state ---------- */
@@ -153,7 +170,11 @@ function getState_(month) {
     if (first === 'Credit Card') { inDues = true; continue; }
     if (first === '') continue;
     if (inDues) dues.push({ card: first, billDate: String(r[1]), dueDate: String(r[2]), limit: num_(r[3]) });
-    else cards.push(r.slice(0, cardHeader.length).map(x => String(x)));
+    else {
+      const row = r.slice(0, cardHeader.length).map(x => String(x));
+      while (row.length < cardHeader.length) row.push('');
+      cards.push(row);
+    }
   }
 
   // Monthly Returns (sheet-calculated history)
@@ -186,7 +207,7 @@ function getState_(month) {
 
 /* ---------- new-month scaffolding ---------- */
 
-/** Copies the latest month's block of rows (A:I, incl. formulas) to a new month. */
+/** Copies the latest month's block of rows (incl. formulas) to a new month. */
 function ensureBlock_(sh, ncols, month, resetFrom, resetTo) {
   const last = lastDataRow_(sh, 1);
   const vals = sh.getRange(1, 1, last, 1).getValues();
@@ -213,35 +234,44 @@ function ensureBlock_(sh, ncols, month, resetFrom, resetTo) {
   sh.getRange(dest, resetFrom, count, resetTo - resetFrom + 1).clearContent();
 }
 
-/* ---------- writes ---------- */
+/* ---------- expenses ---------- */
 
 function markExpense_(req) {
-  // req: month 'yyyy-MM', utility, paidBy, paidOn 'yyyy-MM-dd', amount, mode, adhoc?, createIfMissing?
+  // req: month 'yyyy-MM', utility, paidBy, paidOn 'yyyy-MM-dd', amount, mode,
+  //      adhoc?, row? (edit that exact row), origUtility? (row validation), createIfMissing?
   const sh = SpreadsheetApp.getActive().getSheetByName(EXP);
   if (!(req.amount > 0)) throw new Error('Amount must be greater than 0');
   if (!req.mode) throw new Error('Payment mode is required');
+  if (!req.utility || !String(req.utility).trim()) throw new Error('Item name is required');
 
   ensureBlock_(sh, 9, req.month, 4, 6);                 // Paid On, Amount, Payment mode cleared (C = Paid By kept)
 
   const last = lastDataRow_(sh, 1);
   const a = sh.getRange(1, 1, last, 2).getValues();
   let target = -1;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month && String(a[i][1]).trim() === req.utility) {
-      target = i + 1;
-      if (num_(sh.getRange(target, 5).getValue()) === null) break;     // prefer an unpaid row for this utility
-    }
-  }
 
-  if (target === -1) {                                  // ad-hoc new item: append after the month's last row, formulas copied
-    if (!req.createIfMissing) throw new Error('No row for "' + req.utility + '" in ' + req.month);
-    let lastOfMonth = -1;
-    for (let i = 0; i < a.length; i++) if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month) lastOfMonth = i + 1;
-    sh.insertRowAfter(lastOfMonth);
-    target = lastOfMonth + 1;
-    sh.getRange(lastOfMonth, 1, 1, 9).copyTo(sh.getRange(target, 1, 1, 9));
-    sh.getRange(target, 1).setValue(monthToDate_(req.month));
-    sh.getRange(target, 2).setValue(req.utility);
+  if (req.row > 0) {                                    // editing a specific row
+    validateRow_(sh, req.row, req.month, req.origUtility || req.utility);
+    target = req.row;
+    const newName = String(req.utility).trim();
+    if (newName !== String(a[target - 1][1]).trim()) sh.getRange(target, 2).setValue(newName);
+  } else {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month && String(a[i][1]).trim() === String(req.utility).trim()) {
+        target = i + 1;
+        if (num_(sh.getRange(target, 5).getValue()) === null) break;   // prefer an unpaid row for this utility
+      }
+    }
+    if (target === -1) {                                // ad-hoc new item: append after the month's last row, formulas copied
+      if (!req.createIfMissing) throw new Error('No row for "' + req.utility + '" in ' + req.month);
+      let lastOfMonth = -1;
+      for (let i = 0; i < a.length; i++) if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month) lastOfMonth = i + 1;
+      sh.insertRowAfter(lastOfMonth);
+      target = lastOfMonth + 1;
+      sh.getRange(lastOfMonth, 1, 1, 9).copyTo(sh.getRange(target, 1, 1, 9));
+      sh.getRange(target, 1).setValue(monthToDate_(req.month));
+      sh.getRange(target, 2).setValue(String(req.utility).trim());
+    }
   }
 
   sh.getRange(target, 3).setValue(req.paidBy || '');
@@ -253,8 +283,19 @@ function markExpense_(req) {
   return { ok: true, row: target };
 }
 
+function clearExpense_(req) {
+  // req: month, row, utility. Clears Paid On / Amount / Payment mode only (row and formulas stay).
+  const sh = SpreadsheetApp.getActive().getSheetByName(EXP);
+  validateRow_(sh, req.row, req.month, req.utility);
+  sh.getRange(req.row, 4, 1, 3).clearContent();
+  SpreadsheetApp.flush();
+  return { ok: true, row: req.row };
+}
+
+/* ---------- card bills ---------- */
+
 function markCCBill_(req) {
-  // req: month 'yyyy-MM', card, amount, method
+  // req: month, card, amount, method, row? (edit that exact row)
   const sh = SpreadsheetApp.getActive().getSheetByName(BILL);
   if (req.amount == null || Number(req.amount) < 0) throw new Error('Bill amount is required');
   if (!req.method) throw new Error('Payment method is required');
@@ -264,21 +305,121 @@ function markCCBill_(req) {
   const last = lastDataRow_(sh, 1);
   const a = sh.getRange(1, 1, last, 2).getValues();
   let target = -1;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month && String(a[i][1]).trim() === req.card) { target = i + 1; break; }
-  }
-  if (target === -1) {                                  // card not in that month's block yet: append with formulas
-    let lastOfMonth = -1;
-    for (let i = 0; i < a.length; i++) if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month) lastOfMonth = i + 1;
-    sh.insertRowAfter(lastOfMonth);
-    target = lastOfMonth + 1;
-    sh.getRange(lastOfMonth, 1, 1, 6).copyTo(sh.getRange(target, 1, 1, 6));
-    sh.getRange(target, 1).setValue(monthToDate_(req.month));
-    sh.getRange(target, 2).setValue(req.card);
+  if (req.row > 0) {
+    validateRow_(sh, req.row, req.month, req.card);
+    target = req.row;
+  } else {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month && String(a[i][1]).trim() === req.card) { target = i + 1; break; }
+    }
+    if (target === -1) {                                // card not in that month's block yet: append with formulas
+      let lastOfMonth = -1;
+      for (let i = 0; i < a.length; i++) if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month) lastOfMonth = i + 1;
+      sh.insertRowAfter(lastOfMonth);
+      target = lastOfMonth + 1;
+      sh.getRange(lastOfMonth, 1, 1, 6).copyTo(sh.getRange(target, 1, 1, 6));
+      sh.getRange(target, 1).setValue(monthToDate_(req.month));
+      sh.getRange(target, 2).setValue(req.card);
+    }
   }
 
   sh.getRange(target, 3).setValue(Number(req.amount));
   sh.getRange(target, 4).setValue(req.method);
+  SpreadsheetApp.flush();
+  return { ok: true, row: target };
+}
+
+function clearBill_(req) {
+  // req: month, row, card. Clears Bill Amount + Payment method only.
+  const sh = SpreadsheetApp.getActive().getSheetByName(BILL);
+  validateRow_(sh, req.row, req.month, req.card);
+  sh.getRange(req.row, 3, 1, 2).clearContent();
+  SpreadsheetApp.flush();
+  return { ok: true, row: req.row };
+}
+
+/* ---------- payment-method rates (Rewards tab) ---------- */
+
+/**
+ * Sets the rate of a payment method. NOTE: every row in Monthly Expenses and CC bill looks this
+ * value up live (INDEX/MATCH), so changing it also changes past months' returns.
+ * With create:true, appends a NEW method instead (no history is affected).
+ */
+function setRate_(req) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(REW);
+  const name = String(req.name || '').trim();
+  const rate = Number(req.rate);
+  if (!name) throw new Error('Method name is required');
+  if (isNaN(rate) || rate < 0 || rate > 1) throw new Error('Rate must be between 0% and 100%');
+
+  const last = lastDataRow_(sh, 1);
+  const names = sh.getRange(1, 1, last, 1).getValues();
+  let target = -1;
+  for (let i = 0; i < names.length; i++) if (String(names[i][0]).trim().toLowerCase() === name.toLowerCase()) { target = i + 1; break; }
+
+  if (req.create) {
+    if (target !== -1) throw new Error('A method called "' + name + '" already exists');
+    const row = last + 1;
+    if (last >= 2) sh.getRange(last, 1, 1, 2).copyTo(sh.getRange(row, 1, 1, 2));
+    sh.getRange(row, 1).setValue(name);
+    sh.getRange(row, 2).setValue(rate);
+    target = row;
+  } else {
+    if (target === -1) throw new Error('Method "' + name + '" not found in the Rewards tab');
+    sh.getRange(target, 2).setValue(rate);
+  }
+  SpreadsheetApp.flush();
+  return { ok: true, row: target };
+}
+
+/* ---------- Card list tab ---------- */
+
+function updateCardField_(req) {
+  // req: card, field (column header, e.g. 'Online spends'), value (text)
+  const sh = SpreadsheetApp.getActive().getSheetByName(CARDS);
+  const vals = sh.getDataRange().getValues();
+  const header = vals[0].map(String);
+  const col = header.indexOf(String(req.field));
+  if (col < 1) throw new Error('Unknown field: ' + req.field);          // col 0 is the card name: not editable here
+  const value = req.value == null ? '' : String(req.value);
+  if (value.length > 500) throw new Error('Value is too long');
+
+  let target = -1;
+  for (let i = 1; i < vals.length; i++) {
+    const first = String(vals[i][0]).trim();
+    if (first === 'Credit Card') break;                                  // stop at the bill/due table
+    if (first === String(req.card).trim()) { target = i + 1; break; }
+  }
+  if (target === -1) throw new Error('Card not found: ' + req.card);
+
+  const cell = sh.getRange(target, col + 1);
+  if (value === '') cell.clearContent(); else cell.setValue(value);
+  SpreadsheetApp.flush();
+  return { ok: true, row: target };
+}
+
+function updateDue_(req) {
+  // req: card, billDate?, dueDate?, limit? (number | null to clear)
+  const sh = SpreadsheetApp.getActive().getSheetByName(CARDS);
+  const vals = sh.getDataRange().getValues();
+  let inDues = false, target = -1;
+  for (let i = 1; i < vals.length; i++) {
+    const first = String(vals[i][0]).trim();
+    if (first === 'Credit Card') { inDues = true; continue; }
+    if (inDues && first === String(req.card).trim()) { target = i + 1; break; }
+  }
+  if (target === -1) throw new Error('Card not found in the due-date table: ' + req.card);
+
+  if (req.billDate !== undefined) sh.getRange(target, 2).setValue(String(req.billDate));
+  if (req.dueDate !== undefined) sh.getRange(target, 3).setValue(String(req.dueDate));
+  if (req.limit !== undefined) {
+    if (req.limit === null || req.limit === '') sh.getRange(target, 4).clearContent();
+    else {
+      const lim = Number(req.limit);
+      if (isNaN(lim) || lim < 0) throw new Error('Card limit must be a number');
+      sh.getRange(target, 4).setValue(lim);
+    }
+  }
   SpreadsheetApp.flush();
   return { ok: true, row: target };
 }

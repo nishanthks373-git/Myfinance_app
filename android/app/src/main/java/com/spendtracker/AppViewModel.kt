@@ -70,17 +70,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Today if viewing the current month, otherwise the 1st of the viewed month. */
     fun defaultDate(): LocalDate = if (month == YearMonth.now()) LocalDate.now() else month.atDay(1)
 
-    fun markExpense(
-        utility: String, paidBy: String, paidOn: String, amount: Double, mode: String,
-        createIfMissing: Boolean, onResult: (Boolean) -> Unit,
-    ) {
+    /** Runs a sheet write, shows the result, reloads the sheet on success. */
+    private fun act(done: String, onResult: (Boolean) -> Unit, block: suspend () -> Unit) {
         viewModelScope.launch {
             busy = true
             var ok = false
             try {
-                Api.markExpense(scriptUrl, token, month.toString(), utility, paidBy, paidOn, amount, mode, createIfMissing)
-                prefs.edit().putString("lastPaidBy", paidBy).apply()
-                message = "Saved to your sheet"
+                block()
+                message = done
                 ok = true
             } catch (e: Exception) {
                 message = e.message ?: "Could not save"
@@ -92,21 +89,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun markBill(card: String, amount: Double, method: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            busy = true
-            var ok = false
-            try {
-                Api.markBill(scriptUrl, token, month.toString(), card, amount, method)
-                message = "Saved to your sheet"
-                ok = true
-            } catch (e: Exception) {
-                message = e.message ?: "Could not save"
-            } finally {
-                busy = false
-            }
-            onResult(ok)
-            if (ok) load()
-        }
+    fun markExpense(
+        row: Int, origUtility: String, utility: String, paidBy: String, paidOn: String,
+        amount: Double, mode: String, adhoc: Double, createIfMissing: Boolean, onResult: (Boolean) -> Unit,
+    ) = act("Saved to your sheet", onResult) {
+        Api.markExpense(
+            scriptUrl, token, month.toString(), row, origUtility, utility, paidBy, paidOn,
+            amount, mode, adhoc, createIfMissing,
+        )
+        prefs.edit().putString("lastPaidBy", paidBy).apply()
     }
+
+    fun clearExpense(row: Int, utility: String, onResult: (Boolean) -> Unit) =
+        act("Payment cleared in your sheet", onResult) {
+            Api.clearExpense(scriptUrl, token, month.toString(), row, utility)
+        }
+
+    fun markBill(row: Int, card: String, amount: Double, method: String, onResult: (Boolean) -> Unit) =
+        act("Saved to your sheet", onResult) {
+            Api.markBill(scriptUrl, token, month.toString(), row, card, amount, method)
+        }
+
+    fun clearBill(row: Int, card: String, onResult: (Boolean) -> Unit) =
+        act("Bill cleared in your sheet", onResult) {
+            Api.clearBill(scriptUrl, token, month.toString(), row, card)
+        }
+
+    fun setRate(name: String, rate: Double, create: Boolean, onResult: (Boolean) -> Unit) =
+        act(if (create) "Method added to your sheet" else "Rate updated in your sheet", onResult) {
+            Api.setRate(scriptUrl, token, name, rate, create)
+        }
+
+    fun editCardField(card: String, field: String, value: String, onResult: (Boolean) -> Unit) =
+        act("Updated in your sheet", onResult) {
+            Api.updateCardField(scriptUrl, token, card, field, value)
+        }
+
+    fun editDue(card: String, billDate: String, dueDate: String, limit: Double?, onResult: (Boolean) -> Unit) =
+        act("Updated in your sheet", onResult) {
+            Api.updateDue(scriptUrl, token, card, billDate, dueDate, limit)
+        }
 }

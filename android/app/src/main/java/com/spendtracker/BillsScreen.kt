@@ -1,18 +1,21 @@
 package com.spendtracker
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -27,10 +30,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+private fun billReward(b: CcBill): Double =
+    b.actual ?: RewardMath.billReward(b.amount ?: 0.0, b.rate ?: 0.0)
 
 @Composable
 fun BillsScreen(vm: AppViewModel) {
     var editing by remember { mutableStateOf<CcBill?>(null) }
+    var filter by remember { mutableStateOf(0) }   // 0 all, 1 paid, 2 pending
 
     Column(Modifier.fillMaxSize()) {
         MonthBar(vm)
@@ -38,48 +46,72 @@ fun BillsScreen(vm: AppViewModel) {
         if (!vm.configured) {
             NotConfigured()
         } else if (s != null) {
-            val items = if (s.ccBills.isNotEmpty()) s.ccBills
+            val all = if (s.ccBills.isNotEmpty()) s.ccBills
             else s.templateCards.map { CcBill(-1, it, null, "", null, null) }
+            val paid = all.filter { it.isPaid }
+            val pending = all.filter { !it.isPaid }
+            val shown = when (filter) {
+                1 -> paid
+                2 -> pending
+                else -> all
+            }
 
             LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
+                    AppCard(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            Stat("Bills paid", inr(paid.sumOf { it.amount ?: 0.0 }), Brand.Blue)
+                            Stat("Rewards", inr(paid.sumOf { billReward(it) }), Brand.Green)
+                            Stat("Not marked", pending.size.toString(), Brand.Amber)
+                        }
+                    }
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Pill("All ${all.size}", Brand.Indigo, filled = filter == 0, onClick = { filter = 0 })
+                        Pill("Paid ${paid.size}", Brand.Green, filled = filter == 1, onClick = { filter = 1 })
+                        Pill("Not marked ${pending.size}", Brand.Amber, filled = filter == 2, onClick = { filter = 2 })
+                    }
+                }
+                item {
                     Text(
-                        "Pay each card's bill from the account that earns the most. Rates are shown in the picker.",
-                        style = MaterialTheme.typography.bodySmall,
+                        "Pay each card's bill from the method that earns the most. Rates show in the picker.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                items(items) { b ->
+                items(shown) { b ->
                     val due = s.dues.firstOrNull { it.card == b.card }
-                    Card(Modifier.fillMaxWidth().clickable { editing = b }) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                    AppCard(Modifier.fillMaxWidth(), onClick = { editing = b }) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Avatar(b.card, Brand.colorFor(b.card))
+                            Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(b.card, fontWeight = FontWeight.SemiBold)
-                                val status = when {
-                                    b.isPaid -> "Paid via ${b.method}"
-                                    else -> "Pending – tap to mark paid"
-                                }
-                                Text(status, style = MaterialTheme.typography.bodySmall)
+                                Text(b.card, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (b.isPaid) "Paid via ${b.method}" else "Tap to mark paid",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                                 if (due != null) {
                                     Text(
                                         "Bill ${due.billDate} · due ${due.dueDate}",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }
                             if (b.isPaid) {
                                 Column(horizontalAlignment = Alignment.End) {
-                                    Text(inr(b.amount))
-                                    val r = b.actual ?: RewardMath.billReward(b.amount ?: 0.0, b.rate ?: 0.0)
-                                    Text("+${inr(r)}", style = MaterialTheme.typography.bodySmall)
+                                    Text(inr(b.amount), fontWeight = FontWeight.SemiBold)
+                                    Text("+" + inr(billReward(b)), fontSize = 12.sp, color = Brand.Green, fontWeight = FontWeight.SemiBold)
                                 }
+                            } else {
+                                Pill("Not marked", Brand.Amber)
                             }
                         }
                     }
@@ -96,6 +128,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
     val s = vm.state ?: return
     var amountText by remember { mutableStateOf(item.amount?.takeIf { it > 0.0 }?.let { plain(it) } ?: "") }
     var method by remember { mutableStateOf(item.method) }
+    var confirmClear by remember { mutableStateOf(false) }
 
     val amount = amountText.toDoubleOrNull()
     val rate = RewardMath.rateOf(s.rewards, method)
@@ -106,7 +139,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
         onDismissRequest = { if (!vm.busy) onDismiss() },
         title = { Text(item.card) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = amountText, onValueChange = { amountText = it }, label = { Text("Bill amount (₹)") },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -119,22 +152,36 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
                 if (amount != null && rate != null) {
                     Text(
                         "Reward: ${inr(RewardMath.billReward(amount, rate))} at ${pctOfRate(rate)}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        color = Brand.Green, fontWeight = FontWeight.SemiBold,
                     )
                 }
                 if (method in RewardMath.cappedMethods) {
                     Text(
                         "Capped at ${inr(RewardMath.DEBIT_CAP)} per month for this method (applied in the monthly total).",
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         },
         confirmButton = {
             PrimaryButton(if (vm.busy) "Saving…" else "Save to sheet", enabled = valid && !vm.busy) {
-                vm.markBill(item.card, amount!!, method) { ok -> if (ok) onDismiss() }
+                vm.markBill(item.row, item.card, amount!!, method) { ok -> if (ok) onDismiss() }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !vm.busy) { Text("Cancel") } },
+        dismissButton = {
+            Row {
+                if (item.isPaid && item.row > 0) {
+                    TextButton(
+                        onClick = {
+                            if (!confirmClear) confirmClear = true
+                            else vm.clearBill(item.row, item.card) { ok -> if (ok) onDismiss() }
+                        },
+                        enabled = !vm.busy,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) { Text(if (confirmClear) "Tap again to clear" else "Clear") }
+                }
+                TextButton(onClick = onDismiss, enabled = !vm.busy) { Text("Cancel") }
+            }
+        },
     )
 }
