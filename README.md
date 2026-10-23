@@ -40,7 +40,8 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
 - **Card bills**: each card's bill for the month. Tap to mark, edit or clear.
 - **Cards**: three tabs. Rates (tap to edit a method's return %, or add a method), Cards (tap a card, then
   any field to edit it), Due dates (bill date, due date, limit).
-- **Settings**: connection details.
+- **Settings**: connection details, and the daily reminder (on/off, hour, test button). The reminder lists unpaid
+  expenses and card bills; a card bill is included only from its bill date (Cards > Due dates) onwards.
 
 ## What gets written to the sheet
 
