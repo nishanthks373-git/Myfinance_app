@@ -53,7 +53,7 @@ fun BillsScreen(vm: AppViewModel) {
             val shown = when (filter) {
                 1 -> paid
                 2 -> pending
-                else -> all
+                else -> pending + paid
             }
 
             LazyColumn(
@@ -69,7 +69,7 @@ fun BillsScreen(vm: AppViewModel) {
                         ) {
                             Stat("Bills paid", inr(paid.sumOf { it.amount ?: 0.0 }), Brand.Blue)
                             Stat("Rewards", inr(paid.sumOf { billReward(it) }), Brand.Green)
-                            Stat("Not marked", pending.size.toString(), Brand.Amber)
+                            Stat("Not paid", pending.size.toString(), Brand.Amber)
                         }
                     }
                 }
@@ -77,7 +77,7 @@ fun BillsScreen(vm: AppViewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Pill("All ${all.size}", Brand.Indigo, filled = filter == 0, onClick = { filter = 0 })
                         Pill("Paid ${paid.size}", Brand.Green, filled = filter == 1, onClick = { filter = 1 })
-                        Pill("Not marked ${pending.size}", Brand.Amber, filled = filter == 2, onClick = { filter = 2 })
+                        Pill("Not paid ${pending.size}", Brand.Amber, filled = filter == 2, onClick = { filter = 2 })
                     }
                 }
                 item {
@@ -111,7 +111,7 @@ fun BillsScreen(vm: AppViewModel) {
                                     Text("+" + inr(billReward(b)), fontSize = 12.sp, color = Brand.Green, fontWeight = FontWeight.SemiBold)
                                 }
                             } else {
-                                Pill("Not marked", Brand.Amber)
+                                Pill("Not paid", Brand.Amber)
                             }
                         }
                     }

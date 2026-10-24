@@ -64,7 +64,7 @@ fun ExpensesScreen(vm: AppViewModel) {
             val shown = when (filter) {
                 1 -> paid
                 2 -> pending
-                else -> all
+                else -> pending + paid
             }
 
             Box(Modifier.weight(1f)) {
