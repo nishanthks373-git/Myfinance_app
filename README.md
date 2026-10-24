@@ -38,7 +38,7 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
 - **Expenses**: the month's items with All / Paid / Pending filters. Tap any item to mark it paid or edit
   it (item name, paid by, date, amount, method, extra reward); Clear undoes a payment. + adds an ad-hoc item.
 - **Card bills**: each card's bill for the month. Tap to mark, edit or clear.
-- **Cards**: three tabs. Rates (tap to edit a method's return %, or add a method), Cards (tap a card, then
+- **Cards**: three tabs (on the Cards tab, search by card or category such as "movies", "fuel" or "lounge" to see which cards give a benefit there). Rates (tap to edit a method's return %, or add a method), Cards (tap a card, then
   any field to edit it), Due dates (bill date, due date, limit).
 - **Settings**: connection details, and the daily reminder (on/off, hour, test button). The reminder lists unpaid
   expenses and card bills; a card bill is included only from its bill date (Cards > Due dates) onwards.

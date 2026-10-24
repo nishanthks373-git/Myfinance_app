@@ -70,7 +70,7 @@ fun CardsScreen(vm: AppViewModel) {
 
         if (tab != 0) {
             OutlinedTextField(
-                value = query, onValueChange = { query = it }, label = { Text("Search cards") },
+                value = query, onValueChange = { query = it }, label = { Text(if (tab == 1) "Search a card or category (movies, fuel, lounge…)" else "Search cards") },
                 singleLine = true, modifier = Modifier.fillMaxWidth().padding(16.dp),
             )
         }
@@ -111,8 +111,22 @@ fun CardsScreen(vm: AppViewModel) {
                     }
 
                     1 -> {
-                        val cards = s.cards.filter { it.firstOrNull()?.contains(query, ignoreCase = true) == true }
-                        items(cards) { row ->
+                        val terms = CardSearch.terms(query)
+                        val found = s.cards.mapNotNull { row ->
+                            val nameHit = row.firstOrNull()?.contains(query.trim(), ignoreCase = true) == true
+                            val hits = CardSearch.matches(s.cardHeader, row, terms)
+                            if (query.isBlank() || nameHit || hits.isNotEmpty()) Triple(row, hits, nameHit) else null
+                        }
+                        if (query.isNotBlank() && found.isEmpty()) {
+                            item {
+                                Text(
+                                    "No card in your list mentions \"${query.trim()}\". Add it to the card's fields (or its Additional column) and it will show up here.",
+                                    modifier = Modifier.padding(16.dp), fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        items(found) { (row, fieldHits, _) ->
                             val name = row.firstOrNull().orEmpty()
                             val due = s.dues.firstOrNull { it.card == name }
                             val open = expanded == name
@@ -136,6 +150,21 @@ fun CardsScreen(vm: AppViewModel) {
                                             }
                                         }
                                         Text(if (open) "▴" else "▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (!open && query.isNotBlank() && fieldHits.isNotEmpty()) {
+                                        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            fieldHits.forEach { (h, v) ->
+                                                Column(
+                                                    Modifier.fillMaxWidth()
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .background(Brand.Indigo.copy(alpha = 0.08f))
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                ) {
+                                                    Text(h, fontSize = 12.sp, color = Brand.Indigo, fontWeight = FontWeight.SemiBold)
+                                                    Text(v, fontSize = 14.sp)
+                                                }
+                                            }
+                                        }
                                     }
                                     if (open) {
                                         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
