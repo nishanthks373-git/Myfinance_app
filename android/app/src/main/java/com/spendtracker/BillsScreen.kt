@@ -140,6 +140,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
         title = { Text(item.card) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                HistoryChart(vm, "bill", item.card)
                 OutlinedTextField(
                     value = amountText, onValueChange = { amountText = it }, label = { Text("Bill amount (₹)") },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

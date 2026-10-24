@@ -46,6 +46,14 @@ object Api {
     suspend fun fetchState(url: String, token: String, month: String): SheetState =
         parseState(call(url, req(token, "state").put("month", month)))
 
+    /** Last 12 months (ending at [month]) of one expense (kind "expense") or card bill (kind "bill"). */
+    suspend fun itemHistory(url: String, token: String, month: String, kind: String, name: String): List<ItemPoint> {
+        val j = call(url, req(token, "itemHistory").put("month", month).put("kind", kind).put("name", name))
+        return j.getJSONArray("points").objs().map {
+            ItemPoint(it.optString("month"), it.dbl("amount"), it.dbl("reward"), it.optString("mode"))
+        }
+    }
+
     /** Mark a payment or edit an existing row (row > 0 edits exactly that row). */
     suspend fun markExpense(
         url: String, token: String, month: String, row: Int, origUtility: String, utility: String,

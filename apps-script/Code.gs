@@ -34,6 +34,7 @@ function doPost(e) {
     try {
       switch (req.action) {
         case 'state':           return json_(getState_(req.month));
+        case 'itemHistory':     return json_(itemHistory_(req));
         case 'markExpense':     return json_(markExpense_(req));
         case 'clearExpense':    return json_(clearExpense_(req));
         case 'markCCBill':      return json_(markCCBill_(req));
@@ -422,4 +423,43 @@ function updateDue_(req) {
   }
   SpreadsheetApp.flush();
   return { ok: true, row: target };
+}
+
+
+/* ---------- per-item history (expense or card bill, last 12 months up to `month`) ---------- */
+
+// req: kind ('expense' | 'bill'), name, month ('yyyy-MM')
+function itemHistory_(req) {
+  const ss = SpreadsheetApp.getActive();
+  const want = String(req.name || '').trim().toLowerCase();
+  const end = String(req.month).split('-');
+  const keys = [];
+  for (let k = 11; k >= 0; k--) {
+    const d = new Date(Number(end[0]), Number(end[1]) - 1 - k, 1, 12, 0, 0);
+    keys.push(Utilities.formatDate(d, tz_(), 'yyyy-MM'));
+  }
+  const acc = {};
+  keys.forEach(k => acc[k] = { month: k, amount: null, reward: null, mode: '' });
+
+  const isBill = req.kind === 'bill';
+  const sh = ss.getSheetByName(isBill ? BILL : EXP);
+  const last = lastDataRow_(sh, 1);
+  const vals = sh.getRange(1, 1, last, isBill ? 6 : 9).getValues();
+  for (let i = 0; i < vals.length; i++) {
+    const r = vals[i];
+    if (!(r[0] instanceof Date)) continue;
+    const mk = monthKey_(r[0]);
+    if (!acc[mk]) continue;
+    const name = String(r[1]).trim().toLowerCase();
+    if (name !== want) continue;
+    const amount = num_(isBill ? r[2] : r[4]);
+    const mode = String(isBill ? r[3] : r[5]);
+    if (amount === null || mode === '') continue;          // not paid in that month
+    const reward = num_(isBill ? r[5] : r[8]);
+    const a = acc[mk];
+    a.amount = (a.amount || 0) + amount;
+    a.reward = (a.reward || 0) + (reward || 0);
+    a.mode = a.mode && a.mode !== mode ? a.mode + ', ' + mode : mode;
+  }
+  return { ok: true, name: req.name, points: keys.map(k => acc[k]) };
 }

@@ -169,6 +169,7 @@ private fun ExpenseDialog(vm: AppViewModel, item: Expense?, isNew: Boolean, onDi
         title = { Text(if (isNew) "Add payment" else if (item?.isPaid == true) "Edit payment" else "Mark payment") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!isNew && !item?.utility.isNullOrBlank()) HistoryChart(vm, "expense", item!!.utility)
                 OutlinedTextField(
                     value = utility, onValueChange = { utility = it }, label = { Text("Item") },
                     singleLine = true, readOnly = isPlaceholder, modifier = Modifier.fillMaxWidth(),

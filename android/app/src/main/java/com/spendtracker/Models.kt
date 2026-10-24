@@ -47,3 +47,6 @@ data class SheetState(
     val dues: List<Due>,
     val history: List<MonthHistory>,
 )
+
+/** One month of an expense / card bill. amount == null means not paid that month. */
+data class ItemPoint(val month: String, val amount: Double?, val reward: Double?, val mode: String)
