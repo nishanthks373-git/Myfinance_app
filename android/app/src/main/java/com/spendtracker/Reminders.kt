@@ -32,7 +32,7 @@ data class Pending(val expenses: List<String>, val bills: List<String>) {
 }
 
 object Reminders {
-    private const val CHANNEL = "pending_bills"
+    private const val CHANNEL = "pending_bills_v2"   // channel settings are fixed once created, so a new id was needed to add vibration
     private const val WORK = "daily_reminder"
     private const val NOTIF_ID = 1001
     const val START_DAY = 5
@@ -107,9 +107,13 @@ object Reminders {
     private fun ensureChannel(c: Context) {
         if (Build.VERSION.SDK_INT >= 26) {
             val nm = c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Pending bills", NotificationManager.IMPORTANCE_DEFAULT)
-            )
+            nm.deleteNotificationChannel("pending_bills")
+            val ch = NotificationChannel(CHANNEL, "Pending bills", NotificationManager.IMPORTANCE_HIGH).apply {
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 400, 200, 400)
+                enableLights(true)
+            }
+            nm.createNotificationChannel(ch)
         }
     }
 
@@ -140,6 +144,8 @@ object Reminders {
             .setContentText(body.lineSequence().first())
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(open)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(c).notify(NOTIF_ID, n)
