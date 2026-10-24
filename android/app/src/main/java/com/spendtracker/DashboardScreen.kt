@@ -2,6 +2,7 @@ package com.spendtracker
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +39,7 @@ import androidx.compose.ui.unit.sp
 fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
     val s = vm.state
     var expanded by remember { mutableStateOf<String?>(null) }
+    var pickedMonth by remember { mutableStateOf<String?>(null) }
     val sum = if (s != null) RewardMath.summarize(s) else null
 
     LazyColumn(
@@ -166,7 +169,14 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
                     ) {
                         months.forEach { h ->
                             val pct = h.pct ?: 0.0
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                            val picked = pickedMonth == h.month
+                            Column(
+                                Modifier.clip(RoundedCornerShape(10.dp))
+                                    .background(if (picked) Brand.Indigo.copy(alpha = 0.12f) else Color.Transparent)
+                                    .clickable { pickedMonth = if (picked) null else h.month }
+                                    .padding(horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom,
+                            ) {
                                 Text(trimNum(Math.round(pct * 10.0) / 10.0) + "%", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.height(4.dp))
                                 Box(
@@ -177,7 +187,39 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
                                         .background(Brush.verticalGradient(listOf(Brand.Pink, Brand.Indigo))),
                                 )
                                 Spacer(Modifier.height(4.dp))
-                                Text(shortMonth(h.month), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    shortMonth(h.month), fontSize = 11.sp,
+                                    color = if (picked) Brand.Indigo else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (picked) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                val h = months.firstOrNull { it.month == pickedMonth }
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    if (h == null) {
+                        Text(
+                            "Tap a bar to see that month's spends and returns.",
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        AppCard(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    runCatching { monthTitle(java.time.YearMonth.parse(h.month)) }.getOrDefault(h.month),
+                                    fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    Stat("Spent", inr(h.spends), Brand.Indigo)
+                                    Stat("Returns", inr(h.returns), Brand.Green)
+                                    Stat("Return %", trimNum(Math.round((h.pct ?: 0.0) * 100.0) / 100.0) + "%", Brand.Pink)
+                                }
+                                TextButton(onClick = {
+                                    runCatching { vm.goToMonth(java.time.YearMonth.parse(h.month)) }
+                                }) { Text("Open this month's details") }
                             }
                         }
                     }

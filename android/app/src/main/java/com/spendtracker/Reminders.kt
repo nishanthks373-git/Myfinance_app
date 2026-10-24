@@ -35,6 +35,7 @@ object Reminders {
     private const val CHANNEL = "pending_bills"
     private const val WORK = "daily_reminder"
     private const val NOTIF_ID = 1001
+    const val START_DAY = 5
 
     fun prefs(c: Context) = c.getSharedPreferences("spend_tracker", Context.MODE_PRIVATE)
 
@@ -154,6 +155,8 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         val token = prefs.getString("token", "") ?: ""
         if (!url.startsWith("https://") || token.isBlank()) return Result.success()
         return try {
+            // No reminders in the first days of the month: they start on the 5th.
+            if (!test && LocalDate.now().dayOfMonth < Reminders.START_DAY) return Result.success()
             val state = Api.fetchState(url, token, YearMonth.now().toString())
             Reminders.notify(applicationContext, Reminders.pending(state, LocalDate.now()), test)
             Result.success()

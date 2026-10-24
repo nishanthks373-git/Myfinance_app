@@ -47,6 +47,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
+    fun goToMonth(m: YearMonth) {
+        month = m
+        refresh()
+    }
+
     fun refresh() {
         if (!configured) return
         viewModelScope.launch { load() }
