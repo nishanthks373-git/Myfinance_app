@@ -188,8 +188,8 @@ fun Picker(
     value: String,
     options: List<String>,
     onSelect: (String) -> Unit,
-    display: (String) -> String = { it },
     enabled: Boolean = true,
+    display: (String) -> String = { it },
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
