@@ -1,6 +1,7 @@
 package com.spendtracker
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -13,10 +14,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.Data
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.Constraints
@@ -24,7 +23,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
-import java.util.concurrent.TimeUnit
 
 /** What is still waiting to be paid today. */
 data class Pending(val expenses: List<String>, val bills: List<String>) {
@@ -52,22 +50,37 @@ object Reminders {
         schedule(c)
     }
 
-    /** (Re)schedules the once-a-day check, or cancels it when reminders are off. */
+    private fun alarmIntent(c: Context): PendingIntent = PendingIntent.getBroadcast(
+        c, 7, Intent(c, ReminderAlarmReceiver::class.java),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    fun canExact(c: Context): Boolean =
+        Build.VERSION.SDK_INT < 31 || (c.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+
+    /** Sets (or cancels) the alarm for the next occurrence of the chosen hour. Called at start, on boot and after each alarm. */
     fun schedule(c: Context) {
-        val wm = WorkManager.getInstance(c)
+        val am = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        WorkManager.getInstance(c).cancelUniqueWork(WORK)   // older builds used a 24h periodic job
+        val pi = alarmIntent(c)
         if (!enabled(c)) {
-            wm.cancelUniqueWork(WORK)
+            am.cancel(pi)
             return
         }
         val now = LocalDateTime.now()
-        var first = now.toLocalDate().atTime(hour(c), 0)
-        if (!first.isAfter(now)) first = first.plusDays(1)
-        val delay = Duration.between(now, first).toMinutes()
-        val req = PeriodicWorkRequestBuilder<ReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(delay, TimeUnit.MINUTES)
+        var next = now.toLocalDate().atTime(hour(c), 0)
+        if (!next.isAfter(now)) next = next.plusDays(1)
+        val at = next.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        if (canExact(c)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+    }
+
+    /** Runs the daily check now (called by the alarm). */
+    fun runCheck(c: Context) {
+        val req = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
-        wm.enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.UPDATE, req)
+        WorkManager.getInstance(c).enqueue(req)
     }
 
     fun sendTestNow(c: Context) {
@@ -169,5 +182,18 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.success()
         }
+    }
+}
+
+class ReminderAlarmReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        Reminders.schedule(context)     // line up tomorrow's alarm first
+        Reminders.runCheck(context)
+    }
+}
+
+class BootReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        Reminders.schedule(context)
     }
 }

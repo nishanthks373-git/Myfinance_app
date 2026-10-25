@@ -85,6 +85,18 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
             })
         }
+        if (remindOn && !Reminders.canExact(ctx)) {
+            Text(
+                "Android is allowing only approximate timing. Allow \"Alarms & reminders\" so the reminder arrives at exactly ${String.format("%02d:00", hour)}.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+            )
+            OutlinedButton(onClick = {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        android.net.Uri.parse("package:" + ctx.packageName)))
+                }
+            }) { Text("Allow exact reminders") }
+        }
         if (remindOn) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("At ${String.format("%02d:00", hour)}", Modifier.weight(1f))
