@@ -132,7 +132,8 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
 
     val amount = amountText.toDoubleOrNull()
     val rate = RewardMath.rateOf(s.rewards, method)
-    val valid = amount != null && amount >= 0.0 && method.isNotBlank()
+    val isZero = amount != null && amount == 0.0
+    val valid = amount != null && amount >= 0.0 && (isZero || method.isNotBlank())
     val methods = s.rewards.sortedByDescending { it.rate }.map { it.name }
 
     AlertDialog(
@@ -146,17 +147,23 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Picker("Paid with", method, methods, { method = it }) { name ->
+                Picker("Paid with", if (isZero) "" else method, methods, { method = it }, enabled = !isZero) { name ->
                     val r = RewardMath.rateOf(s.rewards, name)
                     if (r == null) name else "$name (${pctOfRate(r)})"
                 }
-                if (amount != null && rate != null) {
+                if (isZero) {
+                    Text(
+                        "No bill this month: only the amount (0) is saved and it leaves the pending list.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (amount != null && rate != null && !isZero) {
                     Text(
                         "Reward: ${inr(RewardMath.billReward(amount, rate))} at ${pctOfRate(rate)}",
                         color = Brand.Green, fontWeight = FontWeight.SemiBold,
                     )
                 }
-                if (method in RewardMath.cappedMethods) {
+                if (!isZero && method in RewardMath.cappedMethods) {
                     Text(
                         "Capped at ${inr(RewardMath.DEBIT_CAP)} per month for this method (applied in the monthly total).",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -166,7 +173,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
         },
         confirmButton = {
             PrimaryButton(if (vm.busy) "Saving…" else "Save to sheet", enabled = valid && !vm.busy) {
-                vm.markBill(item.row, item.card, amount!!, method) { ok -> if (ok) onDismiss() }
+                vm.markBill(item.row, item.card, amount!!, if (isZero) "" else method) { ok -> if (ok) onDismiss() }
             }
         },
         dismissButton = {

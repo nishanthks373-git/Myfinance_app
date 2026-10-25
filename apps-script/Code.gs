@@ -299,7 +299,8 @@ function markCCBill_(req) {
   // req: month, card, amount, method, row? (edit that exact row)
   const sh = SpreadsheetApp.getActive().getSheetByName(BILL);
   if (req.amount == null || Number(req.amount) < 0) throw new Error('Bill amount is required');
-  if (!req.method) throw new Error('Payment method is required');
+  const zero = Number(req.amount) === 0;                // no bill this month: only the amount is written
+  if (!zero && !req.method) throw new Error('Payment method is required');
 
   ensureBlock_(sh, 6, req.month, 3, 4);                 // Bill Amount + Payment method cleared
 
@@ -325,7 +326,8 @@ function markCCBill_(req) {
   }
 
   sh.getRange(target, 3).setValue(Number(req.amount));
-  sh.getRange(target, 4).setValue(req.method);
+  if (zero) sh.getRange(target, 4).clearContent();
+  else sh.getRange(target, 4).setValue(req.method);
   SpreadsheetApp.flush();
   return { ok: true, row: target };
 }

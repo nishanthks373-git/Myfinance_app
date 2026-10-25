@@ -26,7 +26,7 @@ data class CcBill(
     val rate: Double?,
     val actual: Double?,
 ) {
-    val isPaid: Boolean get() = method.isNotBlank() && amount != null   // a ₹0 bill with a method counts as paid
+    val isPaid: Boolean get() = amount != null && (amount == 0.0 || method.isNotBlank())   // a ₹0 bill needs no payment method
 }
 
 data class Due(val card: String, val billDate: String, val dueDate: String, val limit: Double?)

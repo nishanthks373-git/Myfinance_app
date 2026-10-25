@@ -189,10 +189,11 @@ fun Picker(
     options: List<String>,
     onSelect: (String) -> Unit,
     display: (String) -> String = { it },
+    enabled: Boolean = true,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { open = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text(
                 if (value.isBlank()) label else "$label: ${display(value)}",
                 modifier = Modifier.weight(1f),
