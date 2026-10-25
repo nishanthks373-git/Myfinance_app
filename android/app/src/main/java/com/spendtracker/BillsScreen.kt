@@ -126,7 +126,7 @@ fun BillsScreen(vm: AppViewModel) {
 @Composable
 private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
     val s = vm.state ?: return
-    var amountText by remember { mutableStateOf(item.amount?.takeIf { it > 0.0 }?.let { plain(it) } ?: "") }
+    var amountText by remember { mutableStateOf(item.amount?.takeIf { it > 0.0 || item.isPaid }?.let { plain(it) } ?: "") }
     var method by remember { mutableStateOf(item.method) }
     var confirmClear by remember { mutableStateOf(false) }
 
