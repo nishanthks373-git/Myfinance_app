@@ -29,6 +29,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var message by mutableStateOf<String?>(null)
 
+    var skipped by mutableStateOf(Skips.all(app))
+        private set
+
+    /** True when this expense was marked "not required" for the month being viewed. */
+    fun isSkipped(e: Expense): Boolean = Skips.key(month.toString(), e.utility) in skipped
+
+    fun setSkipped(e: Expense, on: Boolean) {
+        val k = Skips.key(month.toString(), e.utility)
+        skipped = if (on) skipped + k else skipped - k
+        Skips.save(getApplication(), skipped)
+    }
+
+    /** Pending = not paid and not marked "not required". */
+    fun isPending(e: Expense): Boolean = !e.isPaid && !isSkipped(e)
+
     val configured: Boolean get() = scriptUrl.startsWith("https://") && token.isNotBlank()
 
     init {

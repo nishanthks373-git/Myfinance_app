@@ -36,7 +36,7 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
   return-% bar chart by month (tap a bar for that month's spent, returns and return %). Applies the ₹2,000/month cap on HDFC Rewards Debit / Debit2 card-bill
   cashback, as your Monthly Returns tab does.
 - **Expenses**: the month's items with All / Paid / Pending filters. Tap any item to mark it paid or edit
-  it (item name, paid by, date, amount, method, extra reward); the dialog opens with a 12-month chart of that item (tap a bar for that month); Clear undoes a payment. + adds an ad-hoc item.
+  it (item name, paid by, date, amount, method, extra reward); the dialog opens with a 12-month chart of that item (tap a bar for that month); Clear undoes a payment. On an unpaid item, "Not needed this month" removes it from the pending list (and the reminder) without writing anything to the sheet; it's remembered on the phone. + adds an ad-hoc item.
 - **Card bills**: each card's bill for the month. Tap to mark, edit or clear.
 - **Cards**: three tabs (on the Cards tab, search by card or category such as "movies", "fuel" or "lounge" to see which cards give a benefit there). Rates (tap to edit a method's return %, or add a method), Cards (tap a card, then
   any field to edit it), Due dates (bill date, due date, limit).

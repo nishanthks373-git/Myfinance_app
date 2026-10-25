@@ -103,8 +103,8 @@ object Reminders {
      * Pending expenses always count. A card bill counts only from its bill-generation day of this
      * month onwards. If the card's bill date is missing or can't be read, it is reminded anyway.
      */
-    fun pending(state: SheetState, today: LocalDate): Pending {
-        val expenses = state.expenses.filter { !it.isPaid }.map { it.utility.trim() }.filter { it.isNotEmpty() }
+    fun pending(state: SheetState, today: LocalDate, skipped: Set<String> = emptySet()): Pending {
+        val expenses = state.expenses.filter { !it.isPaid && Skips.key(state.month, it.utility) !in skipped }.map { it.utility.trim() }.filter { it.isNotEmpty() }
         val bills = state.ccBills.filter { !it.isPaid }.filter { bill ->
             val n = norm(bill.card)
             val due = state.dues.firstOrNull {
@@ -177,7 +177,7 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             // No reminders in the first days of the month: they start on the 5th.
             if (!test && LocalDate.now().dayOfMonth < Reminders.START_DAY) return Result.success()
             val state = Api.fetchState(url, token, YearMonth.now().toString())
-            Reminders.notify(applicationContext, Reminders.pending(state, LocalDate.now()), test)
+            Reminders.notify(applicationContext, Reminders.pending(state, LocalDate.now(), Skips.all(applicationContext)), test)
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.success()

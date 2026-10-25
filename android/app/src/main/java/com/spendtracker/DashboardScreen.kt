@@ -80,7 +80,7 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
         if (s == null || sum == null) return@LazyColumn
 
         item {
-            val pendingExpenses = s.expenses.count { !it.isPaid }
+            val pendingExpenses = s.expenses.count { vm.isPending(it) }
             val pendingBills = s.ccBills.count { !it.isPaid }
             AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

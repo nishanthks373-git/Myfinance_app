@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
@@ -60,11 +61,13 @@ fun ExpensesScreen(vm: AppViewModel) {
             val all = if (s.expenses.isNotEmpty()) s.expenses
             else s.templateUtilities.map { Expense(-1, it, "", "", null, "", null, 0.0, null) }
             val paid = all.filter { it.isPaid }
-            val pending = all.filter { !it.isPaid }
+            val pending = all.filter { vm.isPending(it) }
+            val notNeeded = all.filter { !it.isPaid && vm.isSkipped(it) }
             val shown = when (filter) {
                 1 -> paid
                 2 -> pending
-                else -> pending + paid
+                3 -> notNeeded
+                else -> pending + paid + notNeeded
             }
 
             Box(Modifier.weight(1f)) {
@@ -90,6 +93,9 @@ fun ExpensesScreen(vm: AppViewModel) {
                             Pill("All ${all.size}", Brand.Indigo, filled = filter == 0, onClick = { filter = 0 })
                             Pill("Paid ${paid.size}", Brand.Green, filled = filter == 1, onClick = { filter = 1 })
                             Pill("Pending ${pending.size}", Brand.Amber, filled = filter == 2, onClick = { filter = 2 })
+                            if (notNeeded.isNotEmpty()) {
+                                Pill("Not needed ${notNeeded.size}", Color.Gray, filled = filter == 3, onClick = { filter = 3 })
+                            }
                         }
                     }
                     if (shown.isEmpty()) {
@@ -97,7 +103,7 @@ fun ExpensesScreen(vm: AppViewModel) {
                             Text("Nothing here.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    items(shown) { e -> ExpenseRow(e) { editing = e } }
+                    items(shown) { e -> ExpenseRow(e, vm.isSkipped(e)) { editing = e } }
                 }
                 ExtendedFloatingActionButton(
                     onClick = { adding = true },
@@ -116,7 +122,7 @@ fun ExpensesScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
+private fun ExpenseRow(e: Expense, notNeeded: Boolean, onClick: () -> Unit) {
     AppCard(Modifier.fillMaxWidth(), onClick = onClick) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Avatar(e.utility, Brand.colorFor(e.utility))
@@ -124,7 +130,7 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(e.utility.trim(), fontWeight = FontWeight.Bold)
                 Text(
-                    if (e.isPaid) "${e.paidBy} · ${e.paidOn} · ${e.mode}" else "Tap to mark paid",
+                    if (e.isPaid) "${e.paidBy} · ${e.paidOn} · ${e.mode}" else if (notNeeded) "No bill this month" else "Tap to mark paid",
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -133,6 +139,8 @@ private fun ExpenseRow(e: Expense, onClick: () -> Unit) {
                     Text(inr(e.amount), fontWeight = FontWeight.SemiBold)
                     Text("+" + inr(rewardOf(e)), fontSize = 12.sp, color = Brand.Green, fontWeight = FontWeight.SemiBold)
                 }
+            } else if (notNeeded) {
+                Pill("Not needed", Color.Gray)
             } else {
                 Pill("Pending", Brand.Amber)
             }
@@ -170,6 +178,19 @@ private fun ExpenseDialog(vm: AppViewModel, item: Expense?, isNew: Boolean, onDi
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!isNew && !item?.utility.isNullOrBlank()) HistoryChart(vm, "expense", item!!.utility)
+                if (!isNew && item != null && !item.isPaid) {
+                    val skippedNow = vm.isSkipped(item)
+                    OutlinedButton(
+                        onClick = { vm.setSkipped(item, !skippedNow); onDismiss() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(if (skippedNow) "Needed after all (back to pending)" else "Not needed this month") }
+                    if (!skippedNow) {
+                        Text(
+                            "No bill this month. The sheet row stays blank and it leaves the pending list.",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = utility, onValueChange = { utility = it }, label = { Text("Item") },
                     singleLine = true, readOnly = isPlaceholder, modifier = Modifier.fillMaxWidth(),
