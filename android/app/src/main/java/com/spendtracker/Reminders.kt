@@ -97,6 +97,16 @@ object Reminders {
     /** First number in text like "3rd" or "25". */
     fun dayOf(text: String): Int? = Regex("\\d{1,2}").find(text)?.value?.toIntOrNull()?.takeIf { it in 1..31 }
 
+    /** Day of the month this card's statement is generated (from Cards > Due dates), or null if unknown. */
+    fun billDay(state: SheetState, card: String): Int? {
+        val n = norm(card)
+        val due = state.dues.firstOrNull {
+            val d = norm(it.card)
+            d.isNotEmpty() && n.isNotEmpty() && (d == n || d.contains(n) || n.contains(d))
+        }
+        return due?.let { dayOf(it.billDate) }
+    }
+
     private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
     /**
@@ -106,12 +116,7 @@ object Reminders {
     fun pending(state: SheetState, today: LocalDate, skipped: Set<String> = emptySet()): Pending {
         val expenses = state.expenses.filter { !it.isPaid && Skips.key(state.month, it.utility) !in skipped }.map { it.utility.trim() }.filter { it.isNotEmpty() }
         val bills = state.ccBills.filter { !it.isPaid }.filter { bill ->
-            val n = norm(bill.card)
-            val due = state.dues.firstOrNull {
-                val d = norm(it.card)
-                d.isNotEmpty() && n.isNotEmpty() && (d == n || d.contains(n) || n.contains(d))
-            }
-            val day = due?.let { dayOf(it.billDate) }
+            val day = billDay(state, bill.card)
             if (day == null) true else today.dayOfMonth >= minOf(day, YearMonth.from(today).lengthOfMonth())
         }.map { it.card.trim() }.filter { it.isNotEmpty() }
         return Pending(expenses, bills)

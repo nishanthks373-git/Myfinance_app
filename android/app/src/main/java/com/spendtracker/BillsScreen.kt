@@ -46,8 +46,10 @@ fun BillsScreen(vm: AppViewModel) {
         if (!vm.configured) {
             NotConfigured()
         } else if (s != null) {
-            val all = if (s.ccBills.isNotEmpty()) s.ccBills
+            val unsorted = if (s.ccBills.isNotEmpty()) s.ccBills
             else s.templateCards.map { CcBill(-1, it, null, "", null, null) }
+            // Ascending by statement (bill) date; cards without a readable bill date go last.
+            val all = unsorted.sortedBy { Reminders.billDay(s, it.card) ?: 99 }
             val paid = all.filter { it.isPaid }
             val pending = all.filter { !it.isPaid }
             val shown = when (filter) {
