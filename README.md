@@ -32,7 +32,7 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
 
 ## Screens
 
-- **Home**: month's returns, spend and return %, per-method breakdown (tap a row to expand), and a
+- **Home**: month's returns, spend and return %, per-method breakdown (tap a row to expand and see every payment made with that method this month), and a
   return-% bar chart by month (tap a bar for that month's spent, returns and return %). Applies the ₹2,000/month cap on HDFC Rewards Debit / Debit2 card-bill
   cashback, as your Monthly Returns tab does.
 - **Expenses**: the month's items with All / Paid / Pending filters. Tap any item to mark it paid or edit

@@ -144,6 +144,25 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
                     if (open) {
                         val eff = if (row.spend > 0) row.returns / row.spend * 100.0 else 0.0
                         Text("Effective return this month: ${trimNum(eff)}%", fontSize = 13.sp)
+                        val exps = s.expenses.filter { it.mode == row.method && (it.amount ?: 0.0) > 0.0 }
+                            .sortedBy { it.paidOn }
+                        val bills = s.ccBills.filter { it.method == row.method && (it.amount ?: 0.0) > 0.0 }
+                        if (exps.isNotEmpty() || bills.isNotEmpty()) {
+                            Text(
+                                "Payments with ${row.method} (${exps.size + bills.size})",
+                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color,
+                            )
+                            exps.forEach { e ->
+                                val a = e.amount ?: 0.0
+                                val r = e.actual ?: RewardMath.expenseReward(a, e.rate ?: RewardMath.rateOf(s.rewards, e.mode) ?: 0.0, e.adhoc)
+                                PaymentLine(e.utility.trim(), listOf(e.paidBy, e.paidOn).filter { it.isNotBlank() }.joinToString(" · "), a, r)
+                            }
+                            bills.forEach { b ->
+                                val a = b.amount ?: 0.0
+                                val r = b.actual ?: RewardMath.billReward(a, b.rate ?: RewardMath.rateOf(s.rewards, b.method) ?: 0.0)
+                                PaymentLine(b.card.trim(), "Card bill", a, r)
+                            }
+                        }
                         if (row.method in RewardMath.cappedMethods) {
                             Text(
                                 "Card-bill cashback on this method is capped at ${inr(RewardMath.DEBIT_CAP)} per month, same as your sheet.",
@@ -225,6 +244,20 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PaymentLine(name: String, sub: String, amount: Double, reward: Double) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            if (sub.isNotBlank()) Text(sub, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(inr(amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("+" + inr(reward), fontSize = 11.sp, color = Brand.Green, fontWeight = FontWeight.SemiBold)
         }
     }
 }
