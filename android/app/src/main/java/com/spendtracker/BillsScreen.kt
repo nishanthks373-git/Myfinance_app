@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private fun billReward(b: CcBill): Double =
-    b.actual ?: RewardMath.billReward(b.amount ?: 0.0, b.rate ?: 0.0)
+    b.actual ?: RewardMath.billReward(b.amount ?: 0.0, b.rate ?: 0.0, b.adhoc)
 
 @Composable
 fun BillsScreen(vm: AppViewModel) {
@@ -130,12 +130,14 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
     val s = vm.state ?: return
     var amountText by remember { mutableStateOf(item.amount?.takeIf { it > 0.0 || item.isPaid }?.let { plain(it) } ?: "") }
     var method by remember { mutableStateOf(item.method) }
+    var adhocText by remember { mutableStateOf(item.adhoc.takeIf { it != 0.0 }?.let { plain(it) } ?: "") }
     var confirmClear by remember { mutableStateOf(false) }
 
     val amount = amountText.toDoubleOrNull()
     val rate = RewardMath.rateOf(s.rewards, method)
     val isZero = amount != null && amount == 0.0
-    val valid = amount != null && amount >= 0.0 && (isZero || method.isNotBlank())
+    val adhoc = if (adhocText.isBlank()) 0.0 else adhocText.toDoubleOrNull()
+    val valid = amount != null && amount >= 0.0 && (isZero || method.isNotBlank()) && adhoc != null
     val methods = s.rewards.sortedByDescending { it.rate }.map { it.name }
 
     AlertDialog(
@@ -153,6 +155,11 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
                     val r = RewardMath.rateOf(s.rewards, name)
                     if (r == null) name else "$name (${pctOfRate(r)})"
                 }
+                OutlinedTextField(
+                    value = adhocText, onValueChange = { adhocText = it }, label = { Text("Extra reward ₹ (optional)") },
+                    singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 if (isZero) {
                     Text(
                         "No bill this month: only the amount (0) is saved and it leaves the pending list.",
@@ -161,7 +168,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
                 }
                 if (amount != null && rate != null && !isZero) {
                     Text(
-                        "Reward: ${inr(RewardMath.billReward(amount, rate))} at ${pctOfRate(rate)}",
+                        "Reward: ${inr(RewardMath.billReward(amount, rate, adhoc ?: 0.0))} at ${pctOfRate(rate)}",
                         color = Brand.Green, fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -175,7 +182,7 @@ private fun BillDialog(vm: AppViewModel, item: CcBill, onDismiss: () -> Unit) {
         },
         confirmButton = {
             PrimaryButton(if (vm.busy) "Saving…" else "Save to sheet", enabled = valid && !vm.busy) {
-                vm.markBill(item.row, item.card, amount!!, if (isZero) "" else method) { ok -> if (ok) onDismiss() }
+                vm.markBill(item.row, item.card, amount!!, if (isZero) "" else method, adhoc ?: 0.0) { ok -> if (ok) onDismiss() }
             }
         },
         dismissButton = {

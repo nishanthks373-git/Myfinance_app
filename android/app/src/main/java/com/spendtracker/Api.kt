@@ -73,12 +73,12 @@ object Api {
     }
 
     suspend fun markBill(
-        url: String, token: String, month: String, row: Int, card: String, amount: Double, method: String,
+        url: String, token: String, month: String, row: Int, card: String, amount: Double, method: String, adhoc: Double,
     ) {
         call(
             url,
             req(token, "markCCBill").put("month", month).put("row", row).put("card", card)
-                .put("amount", amount).put("method", method),
+                .put("amount", amount).put("method", method).put("adhoc", adhoc),
         )
     }
 
@@ -129,6 +129,7 @@ object Api {
             CcBill(
                 row = it.getInt("row"), card = it.optString("card"), amount = it.dbl("amount"),
                 method = it.optString("method"), rate = it.dbl("rate"), actual = it.dbl("actual"),
+                adhoc = it.dbl("adhoc") ?: 0.0,
             )
         }
         val dues = j.getJSONArray("dues").objs().map {

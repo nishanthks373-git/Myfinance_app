@@ -22,7 +22,7 @@ object RewardMath {
 
     fun expenseReward(amount: Double, rate: Double, adhoc: Double = 0.0): Double = amount * rate + adhoc
 
-    fun billReward(amount: Double, rate: Double): Double = floor(amount / 100.0) * rate * 100.0
+    fun billReward(amount: Double, rate: Double, adhoc: Double = 0.0): Double = floor(amount / 100.0) * rate * 100.0 + adhoc
 
     fun rateOf(rewards: List<Reward>, method: String): Double? = rewards.firstOrNull { it.name == method }?.rate
 
@@ -46,7 +46,7 @@ object RewardMath {
             val m = b.method.ifBlank { "(no method)" }
             total += a
             spend[m] = (spend[m] ?: 0.0) + a
-            val r = b.actual ?: billReward(a, b.rate ?: rateOf(s.rewards, b.method) ?: 0.0)
+            val r = b.actual ?: billReward(a, b.rate ?: rateOf(s.rewards, b.method) ?: 0.0, b.adhoc)
             billRet[m] = (billRet[m] ?: 0.0) + r
         }
         for ((m, v) in billRet) {

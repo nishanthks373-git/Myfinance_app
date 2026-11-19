@@ -49,7 +49,7 @@ After any later edit to the script, use **Deploy > Manage deployments > Edit > N
 |---|---|---|
 | Mark / edit expense | Monthly Expenses | B item, C Paid By, D Paid On, E Amount, F Payment mode, H extra reward |
 | Clear expense | Monthly Expenses | D, E, F emptied (row and formulas stay) |
-| Mark / edit card bill | CC bill | C Bill Amount, D Payment method |
+| Mark / edit card bill | CC bill | C Bill Amount, D Payment method, G Adhoc return (extra reward in ₹; the column is created the first time you use it, and added into the Actual Return formulas in F) |
 | Clear card bill | CC bill | C, D emptied |
 | Edit / add method rate | Rewards | B rate of that method, or a new row |
 | Edit card field | Card list | that one cell |

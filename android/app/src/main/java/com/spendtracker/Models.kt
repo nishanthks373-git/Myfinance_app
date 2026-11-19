@@ -25,6 +25,7 @@ data class CcBill(
     val method: String,
     val rate: Double?,
     val actual: Double?,
+    val adhoc: Double = 0.0,
 ) {
     val isPaid: Boolean get() = amount != null && (amount == 0.0 || method.isNotBlank())   // a ₹0 bill needs no payment method
 }

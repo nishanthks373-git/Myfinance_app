@@ -141,7 +141,7 @@ function getState_(month) {
   // CC bill
   const bs = ss.getSheetByName(BILL);
   const bLast = lastDataRow_(bs, 1);
-  const bVals = bs.getRange(1, 1, bLast, 6).getValues();
+  const bVals = bs.getRange(1, 1, bLast, 7).getValues();
   const ccBills = [];
   const billMonths = {};
   const billByMonth = {};
@@ -154,7 +154,7 @@ function getState_(month) {
     if (mk === month) {
       ccBills.push({
         row: i + 1, card: String(r[1]), amount: num_(r[2]), method: String(r[3]),
-        rate: num_(r[4]), actual: num_(r[5]),
+        rate: num_(r[4]), actual: num_(r[5]), adhoc: num_(r[6]) || 0,
       });
     }
   }
@@ -209,7 +209,7 @@ function getState_(month) {
 /* ---------- new-month scaffolding ---------- */
 
 /** Copies the latest month's block of rows (incl. formulas) to a new month. */
-function ensureBlock_(sh, ncols, month, resetFrom, resetTo) {
+function ensureBlock_(sh, ncols, month, resetFrom, resetTo, extraReset) {
   const last = lastDataRow_(sh, 1);
   const vals = sh.getRange(1, 1, last, 1).getValues();
   let latestKey = '', latestTs = -1;
@@ -233,6 +233,7 @@ function ensureBlock_(sh, ncols, month, resetFrom, resetTo) {
   sh.getRange(dest, 1, count, 1).setValue(monthToDate_(month));
   // clear user-entered inputs so the new month starts "unpaid"
   sh.getRange(dest, resetFrom, count, resetTo - resetFrom + 1).clearContent();
+  if (extraReset) sh.getRange(dest, extraReset, count, 1).clearContent();
 }
 
 /* ---------- expenses ---------- */
@@ -302,7 +303,11 @@ function markCCBill_(req) {
   const zero = Number(req.amount) === 0;                // no bill this month: only the amount is written
   if (!zero && !req.method) throw new Error('Payment method is required');
 
-  ensureBlock_(sh, 6, req.month, 3, 4);                 // Bill Amount + Payment method cleared
+  const adhoc = Number(req.adhoc) || 0;
+  if (adhoc !== 0) ensureBillAdhoc_(sh);                // adds the "Adhoc return" column on first use
+  const hasAdhoc = billHasAdhoc_(sh);
+  const ncols = hasAdhoc ? 7 : 6;
+  ensureBlock_(sh, ncols, req.month, 3, 4, hasAdhoc ? 7 : 0);   // Bill Amount + Payment method (+ Adhoc) cleared
 
   const last = lastDataRow_(sh, 1);
   const a = sh.getRange(1, 1, last, 2).getValues();
@@ -319,7 +324,8 @@ function markCCBill_(req) {
       for (let i = 0; i < a.length; i++) if (a[i][0] instanceof Date && monthKey_(a[i][0]) === req.month) lastOfMonth = i + 1;
       sh.insertRowAfter(lastOfMonth);
       target = lastOfMonth + 1;
-      sh.getRange(lastOfMonth, 1, 1, 6).copyTo(sh.getRange(target, 1, 1, 6));
+      sh.getRange(lastOfMonth, 1, 1, ncols).copyTo(sh.getRange(target, 1, 1, ncols));
+      if (hasAdhoc) sh.getRange(target, 7).clearContent();
       sh.getRange(target, 1).setValue(monthToDate_(req.month));
       sh.getRange(target, 2).setValue(req.card);
     }
@@ -328,6 +334,9 @@ function markCCBill_(req) {
   sh.getRange(target, 3).setValue(Number(req.amount));
   if (zero) sh.getRange(target, 4).clearContent();
   else sh.getRange(target, 4).setValue(req.method);
+  if (hasAdhoc) {
+    if (adhoc !== 0) sh.getRange(target, 7).setValue(adhoc); else sh.getRange(target, 7).clearContent();
+  }
   SpreadsheetApp.flush();
   return { ok: true, row: target };
 }
@@ -337,6 +346,7 @@ function clearBill_(req) {
   const sh = SpreadsheetApp.getActive().getSheetByName(BILL);
   validateRow_(sh, req.row, req.month, req.card);
   sh.getRange(req.row, 3, 1, 2).clearContent();
+  if (billHasAdhoc_(sh)) sh.getRange(req.row, 7).clearContent();
   SpreadsheetApp.flush();
   return { ok: true, row: req.row };
 }
@@ -464,4 +474,32 @@ function itemHistory_(req) {
     a.mode = a.mode && a.mode !== mode ? a.mode + ', ' + mode : mode;
   }
   return { ok: true, name: req.name, points: keys.map(k => acc[k]) };
+}
+
+
+/* ---------- CC bill: optional "Adhoc return" column (flat rupees, like Monthly Expenses) ---------- */
+
+function billHasAdhoc_(sh) {
+  return /adhoc/i.test(String(sh.getRange(1, 7).getValue()));
+}
+
+/**
+ * Creates column G "Adhoc return" on the CC bill tab the first time an extra reward is saved, and adds it to
+ * every existing "Actual Return" formula in column F (F = existing formula + N(G)), so the monthly totals include it.
+ */
+function ensureBillAdhoc_(sh) {
+  if (billHasAdhoc_(sh)) return;
+  const head = String(sh.getRange(1, 7).getValue()).trim();
+  if (head !== '') throw new Error("CC bill column G is already used ('" + head + "'). Move or clear it first.");
+  const last = lastDataRow_(sh, 1);
+  sh.getRange(1, 7).setValue('Adhoc return');
+  sh.getRange(1, 6, last, 1).copyTo(sh.getRange(1, 7, last, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  const fr = sh.getRange(2, 6, last - 1, 1);
+  const formulas = fr.getFormulas();
+  for (let i = 0; i < formulas.length; i++) {
+    const f = formulas[i][0];
+    if (f && !/\bG\d+/i.test(f)) formulas[i][0] = f + '+N(G' + (i + 2) + ')';
+  }
+  fr.setFormulas(formulas);
+  SpreadsheetApp.flush();
 }

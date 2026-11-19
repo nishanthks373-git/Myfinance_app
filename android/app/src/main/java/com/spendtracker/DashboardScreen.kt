@@ -159,7 +159,7 @@ fun DashboardScreen(vm: AppViewModel, onNavigate: (Int) -> Unit) {
                             }
                             bills.forEach { b ->
                                 val a = b.amount ?: 0.0
-                                val r = b.actual ?: RewardMath.billReward(a, b.rate ?: RewardMath.rateOf(s.rewards, b.method) ?: 0.0)
+                                val r = b.actual ?: RewardMath.billReward(a, b.rate ?: RewardMath.rateOf(s.rewards, b.method) ?: 0.0, b.adhoc)
                                 PaymentLine(b.card.trim(), "Card bill", a, r)
                             }
                         }

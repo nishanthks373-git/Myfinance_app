@@ -125,9 +125,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Api.clearExpense(scriptUrl, token, month.toString(), row, utility)
         }
 
-    fun markBill(row: Int, card: String, amount: Double, method: String, onResult: (Boolean) -> Unit) =
+    fun markBill(row: Int, card: String, amount: Double, method: String, adhoc: Double, onResult: (Boolean) -> Unit) =
         act("Saved to your sheet", onResult) {
-            Api.markBill(scriptUrl, token, month.toString(), row, card, amount, method)
+            Api.markBill(scriptUrl, token, month.toString(), row, card, amount, method, adhoc)
         }
 
     fun clearBill(row: Int, card: String, onResult: (Boolean) -> Unit) =
